@@ -29,7 +29,7 @@ f. ¿Has sacado alguna conclusión extra en tu análisis?\
 para determinar el sentimiento de los tweets. Preguntas:\
 a. ¿Cuáles son las predicciones? Interpreta los resultados.\
 b. ¿Qué variables son las más importantes del modelo?\
-c. ¿Cómo podrías mejorar el modelo?\
+c. ¿Cómo podrías mejorar el modelo?
 d. ¿Qué otras oportunidades se te ocurren donde se podrían aplicar otros\
 modelos de ML?
 5. Despliega el modelo pre entrenado a través de un endpoint utilizando una API.
