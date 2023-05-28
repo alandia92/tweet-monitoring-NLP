@@ -1,90 +1,58 @@
-from flask import Flask, request, jsonify
-import os
-import pickle
-from sklearn.model_selection import cross_val_score
-from sklearn.svm import SVC
-from sklearn.svm import LinearSVC
-import pandas as pd
+from cProfile import label
 import sqlite3
-
+from flask import Flask, request, jsonify
+import pickle
+import os
+from flask import render_template
+from sklearn.model_selection import cross_val_score
+import pandas as pd
 
 os.chdir(os.path.dirname(__file__))
-
 app = Flask(__name__)
 app.config['DEBUG'] = True
 
 @app.route("/", methods=['GET'])
 def hello():
-    return "Bienvenido twitter sentimental analysis"
+    return "Bienvenido a Twitter Sentiment Analysis"
 
-#1
+# Cargar el modelo pre-entrenado al iniciar la aplicación
+model_path = './model/sentiment_model'
+model = pickle.load(open(model_path, 'rb'))
 
-@app.route('/v2/predict', methods=['GET'])
+# funcion que predice un nuevo texto y lo guarda en la base de datos
+@app.route('/predict', methods=['GET', 'POST'])
 def predict():
-    model = pickle.load(open('./Entregas/model/sentiment_model', 'rb'))
-
-    tweet = request.args.get('tweet', None)
-
-    if tweet is None:
-        return "Missing args, the tweet text is needed to predict"
-    else:
-        prediction = model.predict([tweet])
-        return "The sentiment prediction for the tweet is: " + str(prediction[0])
-
+    if request.method == 'POST':
+        tweet_text = request.form['tweet']
+        
+        # Cargar el modelo pre-entrenado
+        model = pickle.load(open('.model/sentiment_model', 'rb'))
+        
+        # Realizar la predicción
+        prediction = model.predict([tweet_text])
+        
+        sentiment = "Sentimiento positivo" if prediction[0] == 1 else "Sentimiento negativo o nulo"
+        
+        # Insertar el texto del tweet en la base de datos
+        connection = sqlite3.connect('tweets.db')
+        cursor = connection.cursor()
+        cursor.execute("INSERT INTO tweets (text) VALUES (?)", (tweet_text,))
+        connection.commit()
+        connection.close()
+        
+        return f'''
+            <p>La predicción de sentimiento para el tweet '{tweet_text}' es: {sentiment}</p>
+            <p>El texto del tweet se ha ingresado en la base de datos.</p>
+            <p><a href="/predict">Ingresar otro texto</a></p>
+        '''
     
-#2
-
-
-@app.route('/v2/ingest_data', methods=['POST'])
-def ingest_data():
-    connection = sqlite3.connect('tweets.db')
-    cursor = connection.cursor()
-    query = '''INSERT INTO tweets (tweet_text) VALUES (?)'''
-    query_2 = '''SELECT * FROM tweets'''
-
-    tweet_text = request.form.get('tweet_text', None)
-
-    if tweet_text is None:
-        return "Missing args, the tweet text is needed to ingest"
-
-    cursor.execute(query, (tweet_text,))
-    connection.commit()
-
-    result = cursor.execute(query_2).fetchall()
-
-    connection.close()
-    return jsonify(result)
-
-#3
-
-@app.route('/v2/retrain', methods=['PUT'])
-def retrain():
-    connection = sqlite3.connect('tweets.db')
-    cursor = connection.cursor()
-    query = '''SELECT * FROM tweets'''
-    result = cursor.execute(query).fetchall()
-
-    columns = []
-    for i in cursor.description:
-        columns.append(i[0])
-
-    df = pd.DataFrame(data=result, columns=columns)
-    X = df.drop(columns='tweet_text')
-    Y = df['tweet_text']
-
-    model = pickle.load(open('./entregas/model/sentiment_model', 'rb'))
-    model.fit(X, Y)
-    pickle.dump(model, open('./entregas/model/sentiment_model', 'wb'))
-
-    new_score = cross_val_score(model, X, Y, cv=10, scoring='accuracy').mean()
-
-    
-    return f'The score of your retrained model is: {new_score}'
-
-
-    return result
-
-    
-
-
-app.run()
+    return '''
+        <form method="post" action="/predict">
+            <label for="tweet">Ingrese el texto del tweet:</label><br>
+            <input type="text" id="tweet" name="tweet"><br><br>
+            <input type="submit" value="Predecir">
+        </form>
+    '''
+# seria interesante volver a entrenar el modelo con los neuvos datos, pero no hay información sobre el tratamiento de los datos par el modelo dado
+if __name__ == '__main__':
+    app.run()
